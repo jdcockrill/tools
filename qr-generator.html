@@ -71,7 +71,6 @@
     }
     input[type="text"]:focus { outline: 2px solid var(--link); outline-offset: 1px; }
 
-    /* Generic button */
     button {
       padding: 0.3rem 0.7rem;
       border: 1px solid var(--border);
@@ -84,7 +83,6 @@
     }
     button:hover { opacity: 0.75; }
 
-    /* Option button groups */
     .btn-group { display: flex; flex-wrap: wrap; gap: 0.3rem; }
     .btn-group button.active {
       background: var(--link);
@@ -92,7 +90,6 @@
       border-color: var(--link);
     }
 
-    /* Logo row */
     .logo-row { display: flex; align-items: center; gap: 0.5rem; }
     .logo-name {
       font-size: 0.85rem;
@@ -103,7 +100,6 @@
       white-space: nowrap;
     }
 
-    /* Range sliders */
     .range-row {
       display: flex;
       align-items: center;
@@ -114,11 +110,9 @@
     .range-row input[type="range"] { flex: 1; accent-color: var(--link); }
     .range-val { font-size: 0.82rem; color: var(--muted); min-width: 36px; text-align: right; }
 
-    /* Checkbox */
-    .check-row { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.4rem; font-size: 0.85rem; }
+    .check-row { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.5rem; font-size: 0.85rem; }
     .check-row input[type="checkbox"] { accent-color: var(--link); width: 15px; height: 15px; }
 
-    /* Swatches */
     .swatch-row { display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; }
     .swatch {
       width: 26px; height: 26px;
@@ -139,7 +133,6 @@
       background: none;
     }
 
-    /* Preview */
     .preview { display: flex; flex-direction: column; gap: 0.75rem; }
     #qr-preview {
       border: 1px solid var(--border);
@@ -148,6 +141,8 @@
       line-height: 0;
       width: 300px; height: 300px;
     }
+    #qr-preview img { width: 300px; height: 300px; display: block; }
+
     .dl-btn {
       width: 300px;
       padding: 0.55rem 1rem;
@@ -178,33 +173,18 @@
 
       <hr>
 
-      <!-- Dot style -->
       <div>
         <span class="field-label">Dot style</span>
         <div class="btn-group" id="bg-dot-style"></div>
       </div>
 
-      <!-- Corner square style -->
       <div>
-        <span class="field-label">Corner square style</span>
-        <div class="btn-group" id="bg-corner-sq"></div>
-      </div>
-
-      <!-- Corner dot style -->
-      <div>
-        <span class="field-label">Corner dot style</span>
-        <div class="btn-group" id="bg-corner-dot"></div>
-      </div>
-
-      <!-- QR shape -->
-      <div>
-        <span class="field-label">QR shape</span>
-        <div class="btn-group" id="bg-shape"></div>
+        <span class="field-label">Finder pattern style</span>
+        <div class="btn-group" id="bg-finder-style"></div>
       </div>
 
       <hr>
 
-      <!-- Logo -->
       <div>
         <label class="field-label">Logo <span class="sublabel">(optional, square image)</span></label>
         <div class="logo-row">
@@ -216,13 +196,8 @@
 
         <div class="range-row">
           <label for="img-size">Logo size</label>
-          <input type="range" id="img-size" min="0.1" max="0.5" step="0.05" value="0.3">
-          <span class="range-val" id="img-size-val">30%</span>
-        </div>
-        <div class="range-row">
-          <label for="img-margin">Logo margin</label>
-          <input type="range" id="img-margin" min="0" max="20" step="1" value="8">
-          <span class="range-val" id="img-margin-val">8px</span>
+          <input type="range" id="img-size" min="0.1" max="0.45" step="0.05" value="0.25">
+          <span class="range-val" id="img-size-val">25%</span>
         </div>
         <div class="check-row">
           <input type="checkbox" id="hide-bg-dots" checked>
@@ -255,52 +230,167 @@
     </div>
   </div>
 
-  <p style="margin-top:2rem;font-size:0.8rem;color:var(--muted)">QR rendering by <a href="https://github.com/kozakdenys/qr-code-styling" style="color:var(--link)">qr-code-styling</a></p>
+  <p style="margin-top:2rem;font-size:0.8rem;color:var(--muted)">QR matrix by <a href="https://github.com/kazuhikoarase/qrcode-generator" style="color:var(--link)">qrcode-generator</a></p>
 
-  <script src="https://unpkg.com/qr-code-styling@1.6.0/lib/qr-code-styling.js"></script>
+  <canvas id="qr-canvas" style="display:none"></canvas>
+
+  <script src="https://unpkg.com/qrcode-generator@1.4.4/qrcode.js"></script>
   <script>
-    const PRESETS = [
-      { color: '#ffffff', border: '#ccc' },
-      { color: '#111111', border: '#111' },
-      { color: '#1a56db', border: '#1a56db' },
-      { color: '#e02424', border: '#e02424' },
-      { color: '#057a55', border: '#057a55' },
-      { color: '#d97706', border: '#d97706' },
-    ];
+    const RENDER_SIZE = 600;
 
     const state = {
-      text:              'https://example.com',
-      logo:              null,
-      bg:                '#ffffff',
-      fg:                '#111111',
-      accent:            '#111111',
-      shape:             'square',
-      dotType:           'square',
-      cornerSquareType:  'square',
-      cornerDotType:     'square',
-      imageSize:         0.3,
-      imageMargin:       8,
+      text:               'https://example.com',
+      logo:               null,
+      _logoImg:           null,
+      bg:                 '#ffffff',
+      fg:                 '#111111',
+      accent:             '#111111',
+      dotStyle:           'rounded',   // 'rounded' | 'square' | 'dots'
+      finderStyle:        'rounded',   // 'rounded' | 'square'
+      imageSize:          0.25,
       hideBackgroundDots: true,
     };
 
-    const qrCode = new QRCodeStyling({
-      width: 300, height: 300,
-      data:  state.text,
-      shape: state.shape,
-      dotsOptions:          { color: state.fg,     type: state.dotType },
-      backgroundOptions:    { color: state.bg },
-      cornersSquareOptions: { color: state.accent, type: state.cornerSquareType },
-      cornersDotOptions:    { color: state.accent, type: state.cornerDotType },
-      imageOptions: {
-        crossOrigin: 'anonymous',
-        hideBackgroundDots: state.hideBackgroundDots,
-        imageSize: state.imageSize,
-        margin: state.imageMargin,
-      },
-      qrOptions: { errorCorrectionLevel: 'H' },
-    });
+    const canvas = document.getElementById('qr-canvas');
+    canvas.width  = RENDER_SIZE;
+    canvas.height = RENDER_SIZE;
+    const ctx = canvas.getContext('2d');
 
-    qrCode.append(document.getElementById('qr-preview'));
+    // ── Drawing helpers ───────────────────────────────────────────────────────
+
+    function fillRoundRect(x, y, w, h, r) {
+      r = Math.min(r, w / 2, h / 2);
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.lineTo(x + w - r, y);
+      ctx.arcTo(x + w, y,     x + w, y + r,     r);
+      ctx.lineTo(x + w, y + h - r);
+      ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+      ctx.lineTo(x + r, y + h);
+      ctx.arcTo(x,     y + h, x,     y + h - r, r);
+      ctx.lineTo(x, y + r);
+      ctx.arcTo(x,     y,     x + r, y,          r);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    function drawDot(x, y, size) {
+      if (state.dotStyle === 'dots') {
+        ctx.beginPath();
+        ctx.arc(x + size / 2, y + size / 2, size / 2, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (state.dotStyle === 'rounded') {
+        fillRoundRect(x, y, size, size, size * 0.28);
+      } else {
+        ctx.fillRect(x, y, size, size);
+      }
+    }
+
+    function drawFinderPattern(row, col, cellSize) {
+      const x    = col * cellSize;
+      const y    = row * cellSize;
+      const size = 7 * cellSize;
+      const gap  = cellSize * 0.08;
+      const r    = state.finderStyle === 'rounded' ? size * 0.12 : 0;
+      const ri   = state.finderStyle === 'rounded' ? size * 0.07 : 0;
+
+      // Outer square
+      ctx.fillStyle = state.accent;
+      fillRoundRect(x + gap, y + gap, size - gap * 2, size - gap * 2, r);
+
+      // Background ring (hollow)
+      ctx.fillStyle = state.bg;
+      fillRoundRect(x + cellSize, y + cellSize, 5 * cellSize, 5 * cellSize, ri);
+
+      // Inner dot (3×3)
+      ctx.fillStyle = state.accent;
+      fillRoundRect(
+        x + 2 * cellSize + gap,
+        y + 2 * cellSize + gap,
+        3 * cellSize - gap * 2,
+        3 * cellSize - gap * 2,
+        ri
+      );
+    }
+
+    // ── Render ────────────────────────────────────────────────────────────────
+
+    function render() {
+      const qr = qrcode(0, 'H');
+      try {
+        qr.addData(state.text || ' ');
+        qr.make();
+      } catch (e) {
+        return; // data too long
+      }
+
+      const count    = qr.getModuleCount();
+      const cellSize = RENDER_SIZE / count;
+      const gap      = cellSize * 0.08;
+      const dotSize  = cellSize - gap * 2;
+
+      // Finder pattern zones (top-left corners)
+      const finders = [
+        [0,         0        ],
+        [0,         count - 7],
+        [count - 7, 0        ],
+      ];
+
+      function inFinder(r, c) {
+        for (const [fr, fc] of finders) {
+          if (r >= fr && r < fr + 7 && c >= fc && c < fc + 7) return true;
+        }
+        return false;
+      }
+
+      // Logo hidden zone (cells to skip)
+      let hiddenBox = null;
+      if (state.logo && state.hideBackgroundDots) {
+        const logoSize = RENDER_SIZE * state.imageSize;
+        const ox = (RENDER_SIZE - logoSize) / 2;
+        const oy = (RENDER_SIZE - logoSize) / 2;
+        hiddenBox = {
+          r0: Math.floor(oy / cellSize),
+          r1: Math.ceil((oy + logoSize) / cellSize),
+          c0: Math.floor(ox / cellSize),
+          c1: Math.ceil((ox + logoSize) / cellSize),
+        };
+      }
+
+      // Background
+      ctx.fillStyle = state.bg;
+      ctx.fillRect(0, 0, RENDER_SIZE, RENDER_SIZE);
+
+      // Data dots
+      ctx.fillStyle = state.fg;
+      for (let r = 0; r < count; r++) {
+        for (let c = 0; c < count; c++) {
+          if (inFinder(r, c)) continue;
+          if (!qr.isDark(r, c)) continue;
+          if (hiddenBox && r >= hiddenBox.r0 && r < hiddenBox.r1 && c >= hiddenBox.c0 && c < hiddenBox.c1) continue;
+          drawDot(c * cellSize + gap, r * cellSize + gap, dotSize);
+        }
+      }
+
+      // Finder patterns
+      for (const [fr, fc] of finders) {
+        drawFinderPattern(fr, fc, cellSize);
+      }
+
+      // Logo
+      if (state.logo && state._logoImg) {
+        const logoSize = RENDER_SIZE * state.imageSize;
+        const lx = (RENDER_SIZE - logoSize) / 2;
+        const ly = (RENDER_SIZE - logoSize) / 2;
+        ctx.drawImage(state._logoImg, lx, ly, logoSize, logoSize);
+      }
+
+      // Update visible preview
+      const preview = document.getElementById('qr-preview');
+      let img = preview.querySelector('img');
+      if (!img) { img = document.createElement('img'); preview.appendChild(img); }
+      img.src = canvas.toDataURL();
+    }
 
     // ── Button groups ─────────────────────────────────────────────────────────
 
@@ -320,32 +410,27 @@
       });
     }
 
-    buildBtnGroup('bg-dot-style', 'dotType', [
-      { value: 'square',        label: 'Square' },
-      { value: 'rounded',       label: 'Rounded' },
-      { value: 'extra-rounded', label: 'Extra rounded' },
-      { value: 'dots',          label: 'Dots' },
-      { value: 'classy',        label: 'Classy' },
-      { value: 'classy-rounded',label: 'Classy rounded' },
+    buildBtnGroup('bg-dot-style', 'dotStyle', [
+      { value: 'rounded', label: 'Rounded square' },
+      { value: 'square',  label: 'Square' },
+      { value: 'dots',    label: 'Dots' },
     ]);
 
-    buildBtnGroup('bg-corner-sq', 'cornerSquareType', [
-      { value: 'square',        label: 'Square' },
-      { value: 'extra-rounded', label: 'Extra rounded' },
-      { value: 'dot',           label: 'Dot' },
-    ]);
-
-    buildBtnGroup('bg-corner-dot', 'cornerDotType', [
-      { value: 'square', label: 'Square' },
-      { value: 'dot',    label: 'Dot' },
-    ]);
-
-    buildBtnGroup('bg-shape', 'shape', [
-      { value: 'square', label: 'Square' },
-      { value: 'circle', label: 'Circle' },
+    buildBtnGroup('bg-finder-style', 'finderStyle', [
+      { value: 'rounded', label: 'Rounded' },
+      { value: 'square',  label: 'Square' },
     ]);
 
     // ── Swatches ──────────────────────────────────────────────────────────────
+
+    const PRESETS = [
+      { color: '#ffffff', border: '#ccc' },
+      { color: '#111111', border: '#111' },
+      { color: '#1a56db', border: '#1a56db' },
+      { color: '#e02424', border: '#e02424' },
+      { color: '#057a55', border: '#057a55' },
+      { color: '#d97706', border: '#d97706' },
+    ];
 
     function buildSwatches(containerId, stateKey, defaultColor) {
       const container = document.getElementById(containerId);
@@ -356,28 +441,23 @@
         btn.style.borderColor = border;
         btn.title = color;
         btn.addEventListener('click', () => {
-          selectSwatch(container, btn, color, stateKey);
+          container.querySelectorAll('.swatch').forEach(s => s.classList.remove('active'));
+          btn.classList.add('active');
+          container.querySelector('input[type="color"]').value = color;
+          state[stateKey] = color;
+          render();
         });
         container.appendChild(btn);
       });
       const picker = document.createElement('input');
       picker.type = 'color';
       picker.value = defaultColor;
-      picker.title = 'Custom color';
       picker.addEventListener('input', () => {
         container.querySelectorAll('.swatch').forEach(s => s.classList.remove('active'));
         state[stateKey] = picker.value;
         render();
       });
       container.appendChild(picker);
-    }
-
-    function selectSwatch(container, activeBtn, color, stateKey) {
-      container.querySelectorAll('.swatch').forEach(s => s.classList.remove('active'));
-      activeBtn.classList.add('active');
-      container.querySelector('input[type="color"]').value = color;
-      state[stateKey] = color;
-      render();
     }
 
     buildSwatches('swatches-bg',     'bg',     '#ffffff');
@@ -401,32 +481,27 @@
       const reader = new FileReader();
       reader.onload = ev => {
         state.logo = ev.target.result;
+        const img = new Image();
+        img.onload = () => { state._logoImg = img; render(); };
+        img.src = state.logo;
         document.getElementById('logo-name').textContent = file.name;
         document.getElementById('clear-logo-btn').style.display = '';
-        render();
       };
       reader.readAsDataURL(file);
     });
 
     function clearLogo() {
       state.logo = null;
+      state._logoImg = null;
       document.getElementById('logo-name').textContent = 'No logo';
       document.getElementById('clear-logo-btn').style.display = 'none';
       document.getElementById('logo-input').value = '';
       render();
     }
 
-    // ── Image options ─────────────────────────────────────────────────────────
-
     document.getElementById('img-size').addEventListener('input', e => {
       state.imageSize = parseFloat(e.target.value);
       document.getElementById('img-size-val').textContent = Math.round(state.imageSize * 100) + '%';
-      render();
-    });
-
-    document.getElementById('img-margin').addEventListener('input', e => {
-      state.imageMargin = parseInt(e.target.value);
-      document.getElementById('img-margin-val').textContent = state.imageMargin + 'px';
       render();
     });
 
@@ -435,29 +510,24 @@
       render();
     });
 
-    // ── Render ────────────────────────────────────────────────────────────────
-
-    function render() {
-      qrCode.update({
-        data:  state.text || ' ',
-        shape: state.shape,
-        image: state.logo || undefined,
-        dotsOptions:          { color: state.fg,     type: state.dotType },
-        backgroundOptions:    { color: state.bg },
-        cornersSquareOptions: { color: state.accent, type: state.cornerSquareType },
-        cornersDotOptions:    { color: state.accent, type: state.cornerDotType },
-        imageOptions: {
-          crossOrigin:        'anonymous',
-          hideBackgroundDots: state.hideBackgroundDots,
-          imageSize:          state.imageSize,
-          margin:             state.imageMargin,
-        },
-      });
-    }
+    // ── Download ──────────────────────────────────────────────────────────────
 
     function download() {
-      qrCode.download({ name: 'qr-code', extension: 'png' });
+      canvas.toBlob(blob => {
+        const url = URL.createObjectURL(blob);
+        const a   = document.createElement('a');
+        a.href     = url;
+        a.download = 'qr-code.png';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }, 'image/png');
     }
+
+    // ── Initial render ────────────────────────────────────────────────────────
+
+    render();
   </script>
 </body>
 </html>
