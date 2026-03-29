@@ -245,7 +245,7 @@
       bg:                 '#ffffff',
       fg:                 '#111111',
       accent:             '#111111',
-      dotStyle:           'rounded',   // 'rounded' | 'square' | 'dots'
+      dotStyle:           'rounded',   // 'classic' | 'rounded' | 'square' | 'dots'
       finderStyle:        'rounded',   // 'rounded' | 'square'
       imageSize:          0.25,
       hideBackgroundDots: true,
@@ -282,6 +282,7 @@
       } else if (state.dotStyle === 'rounded') {
         fillRoundRect(x, y, size, size, size * 0.28);
       } else {
+        // classic and square: plain rect
         ctx.fillRect(x, y, size, size);
       }
     }
@@ -326,7 +327,7 @@
 
       const count    = qr.getModuleCount();
       const cellSize = RENDER_SIZE / count;
-      const gap      = cellSize * 0.08;
+      const gap      = state.dotStyle === 'classic' ? 0 : cellSize * 0.08;
       const dotSize  = cellSize - gap * 2;
 
       // Finder pattern zones (top-left corners)
@@ -411,6 +412,7 @@
     }
 
     buildBtnGroup('bg-dot-style', 'dotStyle', [
+      { value: 'classic', label: 'Classic' },
       { value: 'rounded', label: 'Rounded square' },
       { value: 'square',  label: 'Square' },
       { value: 'dots',    label: 'Dots' },
