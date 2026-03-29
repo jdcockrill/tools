@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Square Crop</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600&family=DM+Mono&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #fafaf9;
+      --fg: #111;
+      --muted: #888;
+      --border: #d6d6d4;
+      --surface: #efeeec;
+      --link: #1a56db;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0d0d0d;
+        --fg: #efefef;
+        --muted: #5e5e5e;
+        --border: #2b2b2b;
+        --surface: #1a1a1a;
+        --link: #5b9cf6;
+      }
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+
+    body {
+      font-family: 'Outfit', system-ui, sans-serif;
+      font-size: 1rem;
+      line-height: 1.6;
+      margin: 2rem auto;
+      max-width: 920px;
+      padding: 0 1rem;
+      background: var(--bg);
+      color: var(--fg);
+    }
+
+    h1 { font-size: 1.4rem; font-weight: 600; margin: 0.25rem 0 0; letter-spacing: -0.01em; }
+    a.back { color: var(--link); font-size: 0.9rem; text-decoration: none; }
+    a.back:hover { text-decoration: underline; }
+
+    /* ── Drop zone ─────────────────────────────────────────────────────────── */
+
+    #drop-zone {
+      margin-top: 2.5rem;
+      border: 1.5px dashed var(--border);
+      border-radius: 10px;
+      padding: 5rem 2rem;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    #drop-zone:hover, #drop-zone.over {
+      border-color: var(--link);
+      background: var(--surface);
+    }
+    #drop-zone .dz-icon {
+      display: block;
+      margin: 0 auto 1.1rem;
+      color: var(--fg);
+      opacity: 0.25;
+      transition: opacity 0.2s, transform 0.25s;
+    }
+    #drop-zone:hover .dz-icon, #drop-zone.over .dz-icon {
+      opacity: 0.55;
+      transform: translateY(-4px);
+    }
+    #drop-zone .dz-main { font-size: 1rem; font-weight: 500; }
+    #drop-zone .dz-sub  { font-size: 0.875rem; color: var(--muted); margin-top: 0.1rem; }
+    #drop-zone .dz-sub span { color: var(--link); }
+
+    /* ── Editor ────────────────────────────────────────────────────────────── */
+
+    #editor { margin-top: 2rem; display: flex; justify-content: center; }
+    #editor-inner { display: inline-flex; flex-direction: column; }
+
+    #img-wrap {
+      position: relative;
+      display: inline-block;
+      line-height: 0;
+      overflow: hidden;
+      user-select: none;
+      -webkit-user-select: none;
+      border-radius: 3px;
+    }
+
+    #preview-img { display: block; pointer-events: none; }
+
+    .mask {
+      position: absolute;
+      background: rgba(0, 0, 0, 0.5);
+      pointer-events: none;
+    }
+
+    #crop-box {
+      position: absolute;
+      border: 1.5px solid rgba(255, 255, 255, 0.92);
+      cursor: move;
+      touch-action: none;
+    }
+
+    /* Rule of thirds — visible on hover and while dragging */
+    #crop-box::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background:
+        linear-gradient(to right,
+          transparent calc(33.33% - 0.5px),
+          rgba(255,255,255,0.15) calc(33.33% - 0.5px) calc(33.33% + 0.5px),
+          transparent calc(33.33% + 0.5px) calc(66.67% - 0.5px),
+          rgba(255,255,255,0.15) calc(66.67% - 0.5px) calc(66.67% + 0.5px),
+          transparent calc(66.67% + 0.5px)
+        ),
+        linear-gradient(to bottom,
+          transparent calc(33.33% - 0.5px),
+          rgba(255,255,255,0.15) calc(33.33% - 0.5px) calc(33.33% + 0.5px),
+          transparent calc(33.33% + 0.5px) calc(66.67% - 0.5px),
+          rgba(255,255,255,0.15) calc(66.67% - 0.5px) calc(66.67% + 0.5px),
+          transparent calc(66.67% + 0.5px)
+        );
+      opacity: 0;
+      transition: opacity 0.15s;
+    }
+    #crop-box:hover::before,
+    #crop-box.dragging::before { opacity: 1; }
+
+    /* Corner handles */
+    .handle {
+      position: absolute;
+      width: 12px;
+      height: 12px;
+      background: #fff;
+      border-radius: 2px;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+      touch-action: none;
+      transition: transform 0.1s;
+    }
+    .handle:hover { transform: scale(1.25); }
+    .handle[data-corner="tl"] { top: -6px;    left: -6px;  cursor: nw-resize; }
+    .handle[data-corner="tr"] { top: -6px;    right: -6px; cursor: ne-resize; }
+    .handle[data-corner="bl"] { bottom: -6px; left: -6px;  cursor: sw-resize; }
+    .handle[data-corner="br"] { bottom: -6px; right: -6px; cursor: se-resize; }
+
+    /* ── Actions bar ───────────────────────────────────────────────────────── */
+
+    .actions {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-top: 0.85rem;
+      flex-wrap: wrap;
+    }
+    .spacer { flex: 1; }
+
+    .size-label {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.78rem;
+      color: var(--muted);
+      letter-spacing: 0.02em;
+    }
+
+    button {
+      padding: 0.35rem 0.75rem;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      background: var(--surface);
+      color: var(--fg);
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-family: 'Outfit', system-ui, sans-serif;
+      font-weight: 500;
+      transition: opacity 0.15s;
+    }
+    button:hover { opacity: 0.65; }
+
+    .dl-btn {
+      padding: 0.45rem 1.1rem;
+      border: none;
+      border-radius: 5px;
+      background: var(--link);
+      color: #fff;
+      font-size: 0.9rem;
+      font-weight: 600;
+      font-family: 'Outfit', system-ui, sans-serif;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    .dl-btn:hover { opacity: 0.82; }
+  </style>
+</head>
+<body>
+  <a class="back" href="index.html">← Tools</a>
+  <h1>Square Crop</h1>
+
+  <label id="drop-zone" for="file-input">
+    <svg class="dz-icon" width="48" height="48" viewBox="0 0 24 24" fill="none"
+         stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="3" width="18" height="18" rx="2"/>
+      <circle cx="8.5" cy="8.5" r="1.5"/>
+      <polyline points="21 15 16 10 5 21"/>
+    </svg>
+    <div class="dz-main">Drop an image here</div>
+    <div class="dz-sub">or <span>click to browse</span> — JPEG, PNG, WebP&hellip;</div>
+  </label>
+  <input type="file" id="file-input" accept="image/*" style="display:none">
+
+  <div id="editor" style="display:none">
+    <div id="editor-inner">
+    <div id="img-wrap">
+      <img id="preview-img" draggable="false" alt="">
+      <div class="mask" id="mask-top"></div>
+      <div class="mask" id="mask-bottom"></div>
+      <div class="mask" id="mask-left"></div>
+      <div class="mask" id="mask-right"></div>
+      <div id="crop-box">
+        <div class="handle" data-corner="tl"></div>
+        <div class="handle" data-corner="tr"></div>
+        <div class="handle" data-corner="bl"></div>
+        <div class="handle" data-corner="br"></div>
+      </div>
+    </div>
+    <div class="actions">
+      <span class="size-label" id="size-label"></span>
+      <span class="spacer"></span>
+      <button id="btn-new">New image</button>
+      <button id="btn-reset">Reset crop</button>
+      <button class="dl-btn" id="btn-dl">Download PNG</button>
+    </div>
+    </div>
+  </div>
+
+  <script>
+    const MAX_W = 820, MAX_H = 580, MIN_CROP = 40;
+    let srcImg = null, dispW = 0, dispH = 0;
+    let crop = { x: 0, y: 0, size: 0 };
+    let dragState = null;
+
+    // ── Load ───────────────────────────────────────────────────────────────────
+
+    function loadFile(file) {
+      if (!file?.type.startsWith('image/')) return;
+      const reader = new FileReader();
+      reader.onload = ev => {
+        const img = new Image();
+        img.onload = () => {
+          srcImg = img;
+          const sc = Math.min(MAX_W / img.naturalWidth, MAX_H / img.naturalHeight);
+          dispW = Math.round(img.naturalWidth * sc);
+          dispH = Math.round(img.naturalHeight * sc);
+
+          const wrap = document.getElementById('img-wrap');
+          wrap.style.width  = dispW + 'px';
+          wrap.style.height = dispH + 'px';
+
+          const preview = document.getElementById('preview-img');
+          preview.src          = ev.target.result;
+          preview.style.width  = dispW + 'px';
+          preview.style.height = dispH + 'px';
+
+          resetCrop();
+          document.getElementById('drop-zone').style.display = 'none';
+          document.getElementById('editor').style.display    = '';
+        };
+        img.src = ev.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function resetCrop() {
+      const s = Math.min(dispW, dispH);
+      crop = { x: Math.round((dispW - s) / 2), y: Math.round((dispH - s) / 2), size: s };
+      redraw();
+    }
+
+    // ── Redraw ─────────────────────────────────────────────────────────────────
+
+    function redraw() {
+      const { x, y, size } = crop;
+
+      const box = document.getElementById('crop-box');
+      box.style.left   = x + 'px';
+      box.style.top    = y + 'px';
+      box.style.width  = size + 'px';
+      box.style.height = size + 'px';
+
+      setMask('mask-top',    0,        0,        dispW,            y);
+      setMask('mask-bottom', 0,        y + size, dispW,            dispH - y - size);
+      setMask('mask-left',   0,        y,        x,                size);
+      setMask('mask-right',  x + size, y,        dispW - x - size, size);
+
+      const ns = Math.round(size * srcImg.naturalWidth / dispW);
+      document.getElementById('size-label').textContent = `${ns} × ${ns} px`;
+    }
+
+    function setMask(id, x, y, w, h) {
+      const s = document.getElementById(id).style;
+      s.left = x + 'px'; s.top = y + 'px'; s.width = w + 'px'; s.height = h + 'px';
+    }
+
+    // ── Drag & resize ──────────────────────────────────────────────────────────
+
+    function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+    const cropBox = document.getElementById('crop-box');
+
+    cropBox.addEventListener('pointerdown', e => {
+      if (e.target.closest('.handle')) return;
+      e.preventDefault();
+      dragState = { type: 'move', x0: e.clientX, y0: e.clientY, crop0: { ...crop } };
+      cropBox.classList.add('dragging');
+    });
+
+    document.querySelectorAll('.handle').forEach(h => {
+      h.addEventListener('pointerdown', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        dragState = { type: 'resize', corner: h.dataset.corner, x0: e.clientX, y0: e.clientY, crop0: { ...crop } };
+        cropBox.classList.add('dragging');
+      });
+    });
+
+    document.addEventListener('pointermove', e => {
+      if (!dragState) return;
+      const dx = e.clientX - dragState.x0;
+      const dy = e.clientY - dragState.y0;
+      const c  = dragState.crop0;
+
+      if (dragState.type === 'move') {
+        crop = { size: c.size, x: clamp(c.x + dx, 0, dispW - c.size), y: clamp(c.y + dy, 0, dispH - c.size) };
+      } else {
+        const corner = dragState.corner;
+        // delta: positive = grow. Average dx/dy with sign flipped per corner.
+        const delta =
+          corner === 'br' ? (dx + dy) / 2 :
+          corner === 'bl' ? (-dx + dy) / 2 :
+          corner === 'tr' ? (dx - dy) / 2 :
+                            (-dx - dy) / 2; // tl
+
+        // Fixed point: the opposite corner's coordinates
+        const fixX  = (corner === 'bl' || corner === 'tl') ? c.x + c.size : c.x;
+        const fixY  = (corner === 'tr' || corner === 'tl') ? c.y + c.size : c.y;
+
+        // Max size: constrained by image bounds from the fixed corner
+        const maxSz = Math.min(
+          (corner === 'br' || corner === 'tr') ? dispW - fixX : fixX,
+          (corner === 'br' || corner === 'bl') ? dispH - fixY : fixY
+        );
+        const size = clamp(c.size + delta, MIN_CROP, maxSz);
+
+        crop = {
+          size,
+          x: Math.max(0, (corner === 'br' || corner === 'tr') ? fixX         : fixX - size),
+          y: Math.max(0, (corner === 'br' || corner === 'bl') ? fixY         : fixY - size),
+        };
+      }
+      redraw();
+    });
+
+    const endDrag = () => { dragState = null; cropBox.classList.remove('dragging'); };
+    document.addEventListener('pointerup',     endDrag);
+    document.addEventListener('pointercancel', endDrag);
+    window.addEventListener('blur',            endDrag);
+
+    // ── Download ───────────────────────────────────────────────────────────────
+
+    document.getElementById('btn-dl').addEventListener('click', () => {
+      const sc = srcImg.naturalWidth / dispW;
+      const nx = Math.round(crop.x * sc);
+      const ny = Math.round(crop.y * sc);
+      const ns = Math.round(crop.size * sc);
+      const cv = document.createElement('canvas');
+      cv.width = cv.height = ns;
+      cv.getContext('2d').drawImage(srcImg, nx, ny, ns, ns, 0, 0, ns, ns);
+      cv.toBlob(blob => {
+        const a = document.createElement('a');
+        a.href     = URL.createObjectURL(blob);
+        a.download = 'cropped.png';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(a.href);
+      }, 'image/png');
+    });
+
+    // ── Drop zone & file input ─────────────────────────────────────────────────
+
+    document.getElementById('btn-reset').addEventListener('click', resetCrop);
+    document.getElementById('btn-new').addEventListener('click', () => {
+      srcImg = null;
+      document.getElementById('preview-img').src = '';
+      document.getElementById('editor').style.display = 'none';
+      document.getElementById('drop-zone').style.display = '';
+    });
+
+    const dz = document.getElementById('drop-zone');
+    dz.addEventListener('dragover', e  => { e.preventDefault(); dz.classList.add('over'); });
+    dz.addEventListener('dragleave', e => { if (!dz.contains(e.relatedTarget)) dz.classList.remove('over'); });
+    dz.addEventListener('drop',     e  => { e.preventDefault(); dz.classList.remove('over'); loadFile(e.dataTransfer.files[0]); });
+
+    // Allow dropping anywhere on the page (e.g. when editor is already open)
+    document.addEventListener('dragover', e => e.preventDefault());
+    document.addEventListener('drop',     e => { e.preventDefault(); if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]); });
+
+    document.getElementById('file-input').addEventListener('change', e => {
+      loadFile(e.target.files[0]);
+      e.target.value = '';
+    });
+  </script>
+</body>
+</html>

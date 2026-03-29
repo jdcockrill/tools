@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Background Remove</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600&family=DM+Mono&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #fafaf9;
+      --fg: #111;
+      --muted: #888;
+      --border: #d6d6d4;
+      --surface: #efeeec;
+      --link: #1a56db;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0d0d0d;
+        --fg: #efefef;
+        --muted: #5e5e5e;
+        --border: #2b2b2b;
+        --surface: #1a1a1a;
+        --link: #5b9cf6;
+      }
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      font-family: 'Outfit', system-ui, sans-serif;
+      font-size: 1rem;
+      line-height: 1.6;
+      margin: 2rem auto;
+      max-width: 960px;
+      padding: 0 1rem;
+      background: var(--bg);
+      color: var(--fg);
+    }
+    h1 { font-size: 1.4rem; font-weight: 600; margin: 0.25rem 0 0; letter-spacing: -0.01em; }
+    a.back { color: var(--link); font-size: 0.9rem; text-decoration: none; }
+    a.back:hover { text-decoration: underline; }
+
+    /* ── Drop zone ─────────────────────────────────────────────────────────── */
+    #drop-zone {
+      margin-top: 2.5rem;
+      border: 1.5px dashed var(--border);
+      border-radius: 10px;
+      padding: 5rem 2rem;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    #drop-zone:hover, #drop-zone.over {
+      border-color: var(--link);
+      background: var(--surface);
+    }
+    #drop-zone .dz-icon {
+      display: block;
+      margin: 0 auto 1.1rem;
+      opacity: 0.25;
+      transition: opacity 0.2s, transform 0.25s;
+    }
+    #drop-zone:hover .dz-icon, #drop-zone.over .dz-icon { opacity: 0.55; transform: translateY(-4px); }
+    #drop-zone .dz-main { font-size: 1rem; font-weight: 500; }
+    #drop-zone .dz-sub  { font-size: 0.875rem; color: var(--muted); margin-top: 0.1rem; }
+    #drop-zone .dz-sub span { color: var(--link); }
+
+    /* ── Editor ────────────────────────────────────────────────────────────── */
+    #editor { margin-top: 2rem; }
+
+    .panels {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.25rem;
+      align-items: start;
+    }
+    @media (max-width: 600px) { .panels { grid-template-columns: 1fr; } }
+
+    .panel-label {
+      display: block;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--muted);
+      margin-bottom: 0.4rem;
+    }
+    .panel-hint {
+      font-size: 0.75rem;
+      color: var(--muted);
+      margin-top: 0.4rem;
+    }
+
+    canvas {
+      display: block;
+      max-width: 100%;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+    }
+
+    #orig-canvas { cursor: crosshair; }
+
+    /* Transparency checkerboard */
+    .checker-wrap {
+      display: inline-block; /* shrink-wrap to canvas size */
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      overflow: hidden;
+      background-color: #fff;
+      background-image:
+        linear-gradient(45deg, #ddd 25%, transparent 25%),
+        linear-gradient(-45deg, #ddd 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, #ddd 75%),
+        linear-gradient(-45deg, transparent 75%, #ddd 75%);
+      background-size: 14px 14px;
+      background-position: 0 0, 0 7px, 7px -7px, -7px 0;
+    }
+    .checker-wrap canvas { border: none; border-radius: 0; display: block; }
+    .checker-wrap.on-white { background: #fff;    background-image: none; }
+    .checker-wrap.on-dark  { background: #1c1c1c; background-image: none; }
+
+    /* ── Controls ──────────────────────────────────────────────────────────── */
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 1rem;
+      margin-top: 1.25rem;
+    }
+
+    .ctrl-group {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .ctrl-label {
+      font-size: 0.85rem;
+      font-weight: 500;
+      white-space: nowrap;
+    }
+    .ctrl-val {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.78rem;
+      color: var(--muted);
+      min-width: 2.5ch;
+      text-align: right;
+    }
+
+    input[type="range"] { accent-color: var(--link); width: 110px; }
+    input[type="checkbox"] { accent-color: var(--link); width: 15px; height: 15px; cursor: pointer; }
+
+    /* Background colour swatch */
+    .swatch-row { display: flex; align-items: center; gap: 0.45rem; }
+    #bg-swatch {
+      width: 18px; height: 18px;
+      border-radius: 3px;
+      border: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    #bg-hex {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+
+    .spacer { flex: 1; }
+
+    /* View-mode button group */
+    .btn-group { display: flex; }
+    .btn-group button {
+      border-radius: 0;
+      border-right-width: 0;
+      font-size: 0.78rem;
+      padding: 0.28rem 0.6rem;
+    }
+    .btn-group button:first-child { border-radius: 4px 0 0 4px; }
+    .btn-group button:last-child  { border-radius: 0 4px 4px 0; border-right-width: 1px; }
+    .btn-group button.active      { background: var(--link); color: #fff; border-color: var(--link); }
+
+    button {
+      padding: 0.35rem 0.75rem;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      background: var(--surface);
+      color: var(--fg);
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-family: 'Outfit', system-ui, sans-serif;
+      font-weight: 500;
+      transition: opacity 0.15s;
+    }
+    button:hover { opacity: 0.65; }
+
+    .dl-btn {
+      padding: 0.45rem 1.1rem;
+      border: none;
+      border-radius: 5px;
+      background: var(--link);
+      color: #fff;
+      font-size: 0.9rem;
+      font-weight: 600;
+      font-family: 'Outfit', system-ui, sans-serif;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    .dl-btn:hover { opacity: 0.82; }
+  </style>
+</head>
+<body>
+  <a class="back" href="index.html">← Tools</a>
+  <h1>Background Remove</h1>
+
+  <label id="drop-zone" for="file-input">
+    <svg class="dz-icon" width="48" height="48" viewBox="0 0 24 24" fill="none"
+         stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="3" width="18" height="18" rx="2"/>
+      <circle cx="8.5" cy="8.5" r="1.5"/>
+      <polyline points="21 15 16 10 5 21"/>
+    </svg>
+    <div class="dz-main">Drop an image here</div>
+    <div class="dz-sub">or <span>click to browse</span> — JPEG, PNG, WebP&hellip;</div>
+  </label>
+  <input type="file" id="file-input" accept="image/jpeg,image/png,image/webp,image/gif,image/bmp,image/avif" style="display:none">
+
+  <div id="editor" style="display:none">
+    <div class="panels">
+      <div>
+        <span class="panel-label">Original</span>
+        <canvas id="orig-canvas"></canvas>
+        <p class="panel-hint">Click to pick background colour</p>
+      </div>
+      <div>
+        <span class="panel-label">Result</span>
+        <div class="checker-wrap" id="checker-wrap">
+          <canvas id="result-canvas"></canvas>
+        </div>
+        <p class="panel-hint" id="result-hint"></p>
+      </div>
+    </div>
+
+    <div class="controls">
+      <!-- Detected background colour -->
+      <div class="swatch-row">
+        <div id="bg-swatch"></div>
+        <span id="bg-hex">#ffffff</span>
+      </div>
+
+      <!-- Threshold -->
+      <div class="ctrl-group">
+        <span class="ctrl-label">Threshold</span>
+        <input type="range" id="threshold" min="1" max="120" value="30">
+        <span class="ctrl-val" id="threshold-val">30</span>
+      </div>
+
+      <!-- Feather edges -->
+      <div class="ctrl-group">
+        <input type="checkbox" id="feather" checked>
+        <label for="feather" class="ctrl-label" style="cursor:pointer">Feather edges</label>
+      </div>
+
+      <!-- Global colour removal -->
+      <div class="ctrl-group">
+        <input type="checkbox" id="global-remove">
+        <label for="global-remove" class="ctrl-label" style="cursor:pointer">Remove all matching</label>
+      </div>
+
+      <span class="spacer"></span>
+
+      <!-- Erase mode -->
+      <div class="btn-group" id="mode-btns">
+        <button data-mode="auto"  class="active">Auto</button>
+        <button data-mode="erase">Erase</button>
+      </div>
+
+      <!-- View mode -->
+      <div class="ctrl-group">
+        <span class="ctrl-label" style="color:var(--muted);font-size:0.82rem">View</span>
+        <div class="btn-group" id="view-btns">
+          <button data-view="checker" class="active">Checker</button>
+          <button data-view="white">White</button>
+          <button data-view="dark">Dark</button>
+        </div>
+      </div>
+
+      <button id="btn-new">New image</button>
+      <button class="dl-btn" id="btn-dl">Download PNG</button>
+    </div>
+  </div>
+
+  <script>
+    let origData   = null;  // ImageData of the original (never mutated)
+    let bgColor    = { r: 255, g: 255, b: 255 };
+    let eraseSeeds = [];    // { x, y, r, g, b } — manual erase points
+    let bfsVisited = null;  // pooled typed arrays; allocated once per image load
+    let bfsQueue   = null;
+
+    const MAX_DISPLAY = 440; // max display dimension in CSS px
+
+    // ── Algorithm ──────────────────────────────────────────────────────────────
+
+    function colorDistSq(r1, g1, b1, r2, g2, b2) {
+      const dr = r1 - r2, dg = g1 - g2, db = b1 - b2;
+      return dr*dr + dg*dg + db*db;
+    }
+
+    // Sample a 3×3 cluster at each corner, return median R/G/B across corners.
+    function detectBgColor(data, w, h) {
+      const sz = 3;
+      const corners = [[0, 0], [w - sz, 0], [0, h - sz], [w - sz, h - sz]];
+      const rs = [], gs = [], bs = [];
+
+      for (const [cx, cy] of corners) {
+        let r = 0, g = 0, b = 0, n = 0;
+        for (let y = cy; y < cy + sz; y++) {
+          for (let x = cx; x < cx + sz; x++) {
+            const i = (y * w + x) * 4;
+            r += data[i]; g += data[i+1]; b += data[i+2]; n++;
+          }
+        }
+        rs.push(r/n); gs.push(g/n); bs.push(b/n);
+      }
+
+      const med = arr => { arr.sort((a,b) => a-b); return (arr[1] + arr[2]) / 2; };
+      return { r: med(rs), g: med(gs), b: med(bs) };
+    }
+
+    // BFS flood fill from a single seed point with a given reference colour.
+    // Propagates through already-transparent pixels so later seeds can reach
+    // areas separated by previously-removed regions.
+    function bfsFill(data, w, h, seedX, seedY, refR, refG, refB, threshold) {
+      bfsVisited.fill(0);
+      const threshSq = threshold * threshold;
+      let head = 0, tail = 0;
+
+      const enq = (x, y) => {
+        if (x < 0 || x >= w || y < 0 || y >= h) return;
+        const idx = y * w + x;
+        if (bfsVisited[idx]) return;
+        bfsVisited[idx] = 1;
+        bfsQueue[tail++] = idx;
+      };
+
+      enq(seedX, seedY);
+
+      while (head < tail) {
+        const idx = bfsQueue[head++];
+        const x   = idx % w;
+        const y   = (idx / w) | 0;
+        const pi  = idx << 2;
+
+        if (data[pi + 3] === 0) {
+          // Already transparent — keep propagating but don't reprocess
+          enq(x-1,y); enq(x+1,y); enq(x,y-1); enq(x,y+1);
+          continue;
+        }
+        if (colorDistSq(data[pi], data[pi+1], data[pi+2], refR, refG, refB) > threshSq) continue;
+
+        data[pi + 3] = 0;
+        enq(x-1,y); enq(x+1,y); enq(x,y-1); enq(x,y+1);
+      }
+    }
+
+    // Returns a new ImageData with bg removed.
+    // globalRemove=false: BFS flood fill from corners (preserves enclosed regions).
+    // globalRemove=true:  removes every matching pixel regardless of position.
+    // extraSeeds: additional { x, y, r, g, b } points for manual erase.
+    function removeBackground(src, threshold, feather, globalRemove, extraSeeds) {
+      const { width: w, height: h } = src;
+      const data = new Uint8ClampedArray(src.data); // copy
+
+      const { r: br, g: bg, b: bb } = bgColor;
+
+      if (globalRemove) {
+        const threshSq = threshold * threshold;
+        for (let i = 0; i < w * h; i++) {
+          const pi = i << 2;
+          if (colorDistSq(data[pi], data[pi+1], data[pi+2], br, bg, bb) <= threshSq)
+            data[pi + 3] = 0;
+        }
+      } else {
+        // BFS from all 4 corners using the detected background colour
+        bfsFill(data, w, h, 0,     0,     br, bg, bb, threshold);
+        bfsFill(data, w, h, w - 1, 0,     br, bg, bb, threshold);
+        bfsFill(data, w, h, 0,     h - 1, br, bg, bb, threshold);
+        bfsFill(data, w, h, w - 1, h - 1, br, bg, bb, threshold);
+      }
+
+      // Manual erase seeds — each uses the colour at the clicked point
+      for (const s of extraSeeds) {
+        bfsFill(data, w, h, s.x, s.y, s.r, s.g, s.b, threshold);
+      }
+
+      // Feather: soften pixels on the edge of the removed area.
+      if (feather) {
+        const range   = threshold * 1.5;
+        const rangeSq = range * range;
+        for (let y = 0; y < h; y++) {
+          for (let x = 0; x < w; x++) {
+            const pi = (y * w + x) << 2;
+            if (data[pi + 3] === 0) continue;
+
+            const adj =
+              (x > 0     && data[((y * w + x - 1) << 2) + 3] === 0) ||
+              (x < w - 1 && data[((y * w + x + 1) << 2) + 3] === 0) ||
+              (y > 0     && data[(((y-1) * w + x) << 2) + 3] === 0) ||
+              (y < h - 1 && data[(((y+1) * w + x) << 2) + 3] === 0);
+
+            if (!adj) continue;
+
+            const dSq = colorDistSq(data[pi], data[pi+1], data[pi+2], br, bg, bb);
+            if (dSq < rangeSq) data[pi + 3] = Math.round((Math.sqrt(dSq) / range) * 255);
+          }
+        }
+      }
+
+      return new ImageData(data, w, h);
+    }
+
+    // ── Render ─────────────────────────────────────────────────────────────────
+
+    function render() {
+      if (!origData) return;
+      const threshold    = parseInt(document.getElementById('threshold').value);
+      const feather      = document.getElementById('feather').checked;
+      const globalRemove = document.getElementById('global-remove').checked;
+      const result       = removeBackground(origData, threshold, feather, globalRemove, eraseSeeds);
+      document.getElementById('result-canvas').getContext('2d').putImageData(result, 0, 0);
+    }
+
+    // ── Load ───────────────────────────────────────────────────────────────────
+
+    function loadFile(file) {
+      if (!file?.type.startsWith('image/') || file.type === 'image/svg+xml') return;
+      eraseSeeds = [];
+      erasing = false; lastEx = -99; lastEy = -99;
+      const reader = new FileReader();
+      reader.onload = ev => {
+        const img = new Image();
+        img.onload = () => {
+          const w = img.naturalWidth, h = img.naturalHeight;
+
+          const off = Object.assign(document.createElement('canvas'), { width: w, height: h });
+          const ctx = off.getContext('2d');
+          ctx.drawImage(img, 0, 0);
+          origData = ctx.getImageData(0, 0, w, h);
+
+          bfsVisited = new Uint8Array(w * h);
+          bfsQueue   = new Int32Array(w * h);
+
+          bgColor = detectBgColor(origData.data, w, h);
+          updateSwatch();
+
+          const sc = Math.min(MAX_DISPLAY / w, MAX_DISPLAY / h, 1);
+          const dw = Math.round(w * sc), dh = Math.round(h * sc);
+
+          for (const id of ['orig-canvas', 'result-canvas']) {
+            const c = document.getElementById(id);
+            c.width = w; c.height = h;
+            c.style.width = dw + 'px'; c.style.height = dh + 'px';
+          }
+
+          document.getElementById('orig-canvas').getContext('2d').drawImage(img, 0, 0);
+
+          render();
+          document.getElementById('drop-zone').style.display = 'none';
+          document.getElementById('editor').style.display    = '';
+        };
+        img.src = ev.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function updateSwatch() {
+      const hex = '#' + [bgColor.r, bgColor.g, bgColor.b]
+        .map(v => Math.round(v).toString(16).padStart(2, '0')).join('');
+      document.getElementById('bg-swatch').style.background = hex;
+      document.getElementById('bg-hex').textContent = hex;
+    }
+
+    // ── Controls ───────────────────────────────────────────────────────────────
+
+    let debounce;
+    document.getElementById('threshold').addEventListener('input', e => {
+      document.getElementById('threshold-val').textContent = e.target.value;
+      clearTimeout(debounce);
+      debounce = setTimeout(render, 80);
+    });
+
+    document.getElementById('feather').addEventListener('change', render);
+    document.getElementById('global-remove').addEventListener('change', render);
+
+    // Erase mode toggle
+    document.getElementById('mode-btns').addEventListener('click', e => {
+      const btn = e.target.closest('button[data-mode]');
+      if (!btn) return;
+      document.querySelectorAll('#mode-btns button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const isErase = btn.dataset.mode === 'erase';
+      document.getElementById('result-canvas').style.cursor = isErase ? 'crosshair' : 'default';
+      document.getElementById('result-hint').textContent =
+        isErase ? 'Click or drag to erase remaining areas' : '';
+    });
+
+    function canvasEventToSrcCoords(e, canvas) {
+      const w = origData.width, h = origData.height;
+      const rect = canvas.getBoundingClientRect();
+      const x = Math.max(0, Math.min(w - 1, Math.floor((e.clientX - rect.left) * (w / rect.width))));
+      const y = Math.max(0, Math.min(h - 1, Math.floor((e.clientY - rect.top)  * (h / rect.height))));
+      return { x, y };
+    }
+
+    const isEraseMode = () => document.querySelector('#mode-btns button.active')?.dataset.mode === 'erase';
+
+    // Erase by clicking / dragging on result canvas
+    const resultCanvas = document.getElementById('result-canvas');
+    let erasing = false, lastEx = -99, lastEy = -99;
+
+    function applyEraseSeed(e) {
+      const { x, y } = canvasEventToSrcCoords(e, resultCanvas);
+      if (Math.abs(x - lastEx) < 4 && Math.abs(y - lastEy) < 4) return;
+      lastEx = x; lastEy = y;
+      const i = (y * origData.width + x) * 4;
+      eraseSeeds.push({ x, y, r: origData.data[i], g: origData.data[i+1], b: origData.data[i+2] });
+      render();
+    }
+
+    resultCanvas.addEventListener('pointerdown', e => {
+      if (!isEraseMode() || !origData) return;
+      e.preventDefault();
+      erasing = true;
+      resultCanvas.setPointerCapture(e.pointerId);
+      applyEraseSeed(e);
+    });
+    resultCanvas.addEventListener('pointermove', e => { if (erasing) applyEraseSeed(e); });
+    resultCanvas.addEventListener('pointerup',   () => { erasing = false; });
+    resultCanvas.addEventListener('pointercancel', () => { erasing = false; });
+
+    // Click original canvas to pick a new background colour
+    document.getElementById('orig-canvas').addEventListener('click', e => {
+      if (!origData) return;
+      const { x, y } = canvasEventToSrcCoords(e, e.target);
+      const i = (y * origData.width + x) * 4;
+      bgColor = { r: origData.data[i], g: origData.data[i+1], b: origData.data[i+2] };
+      updateSwatch();
+      render();
+    });
+
+    // View mode
+    document.getElementById('view-btns').addEventListener('click', e => {
+      const btn = e.target.closest('button[data-view]');
+      if (!btn) return;
+      document.querySelectorAll('#view-btns button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const wrap = document.getElementById('checker-wrap');
+      wrap.className = 'checker-wrap' + (btn.dataset.view !== 'checker' ? ' on-' + btn.dataset.view : '');
+    });
+
+    // Download
+    document.getElementById('btn-dl').addEventListener('click', () => {
+      document.getElementById('result-canvas').toBlob(blob => {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'no-bg.png';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(a.href);
+      }, 'image/png');
+    });
+
+    // ── Drop zone & file input ─────────────────────────────────────────────────
+
+    document.getElementById('btn-new').addEventListener('click', () => {
+      origData = null;
+      document.getElementById('editor').style.display = 'none';
+      document.getElementById('drop-zone').style.display = '';
+    });
+
+    const dz = document.getElementById('drop-zone');
+    dz.addEventListener('dragover', e  => { e.preventDefault(); dz.classList.add('over'); });
+    dz.addEventListener('dragleave', e => { if (!dz.contains(e.relatedTarget)) dz.classList.remove('over'); });
+    dz.addEventListener('drop',     e  => { e.preventDefault(); dz.classList.remove('over'); loadFile(e.dataTransfer.files[0]); });
+
+    document.addEventListener('dragover', e => e.preventDefault());
+    document.addEventListener('drop',     e => { e.preventDefault(); if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]); });
+
+    document.getElementById('file-input').addEventListener('change', e => {
+      loadFile(e.target.files[0]);
+      e.target.value = '';
+    });
+  </script>
+</body>
+</html>
