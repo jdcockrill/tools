@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QR Code Generator</title>
+  <style>
+    :root {
+      --bg: #fff;
+      --fg: #111;
+      --muted: #666;
+      --border: #ccc;
+      --surface: #f5f5f5;
+      --link: #005ea2;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #111;
+        --fg: #eee;
+        --muted: #999;
+        --border: #444;
+        --surface: #1e1e1e;
+        --link: #58a6ff;
+      }
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      font-family: system-ui, sans-serif;
+      font-size: 1rem;
+      line-height: 1.6;
+      margin: 2rem auto;
+      max-width: 860px;
+      padding: 0 1rem;
+      background: var(--bg);
+      color: var(--fg);
+    }
+    h1 { font-size: 1.4rem; margin: 0.25rem 0 0; }
+    a.back { color: var(--link); font-size: 0.9rem; text-decoration: none; }
+    a.back:hover { text-decoration: underline; }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 1fr 300px;
+      gap: 2rem;
+      margin-top: 1.5rem;
+      align-items: start;
+    }
+    @media (max-width: 640px) {
+      .layout { grid-template-columns: 1fr; }
+      .preview { order: -1; }
+    }
+
+    .controls { display: flex; flex-direction: column; gap: 1.25rem; }
+
+    .field-label {
+      display: block;
+      font-weight: 600;
+      font-size: 0.875rem;
+      margin-bottom: 0.3rem;
+    }
+    .sublabel { font-weight: normal; color: var(--muted); }
+
+    input[type="text"] {
+      width: 100%;
+      padding: 0.45rem 0.6rem;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: var(--surface);
+      color: var(--fg);
+      font-size: 0.95rem;
+    }
+    input[type="text"]:focus { outline: 2px solid var(--link); outline-offset: 1px; }
+
+    /* Generic button */
+    button {
+      padding: 0.3rem 0.7rem;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: var(--surface);
+      color: var(--fg);
+      cursor: pointer;
+      font-size: 0.82rem;
+      line-height: 1.4;
+    }
+    button:hover { opacity: 0.75; }
+
+    /* Option button groups */
+    .btn-group { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+    .btn-group button.active {
+      background: var(--link);
+      color: #fff;
+      border-color: var(--link);
+    }
+
+    /* Logo row */
+    .logo-row { display: flex; align-items: center; gap: 0.5rem; }
+    .logo-name {
+      font-size: 0.85rem;
+      color: var(--muted);
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* Range sliders */
+    .range-row {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      margin-top: 0.4rem;
+    }
+    .range-row label { font-size: 0.82rem; color: var(--muted); white-space: nowrap; min-width: 90px; }
+    .range-row input[type="range"] { flex: 1; accent-color: var(--link); }
+    .range-val { font-size: 0.82rem; color: var(--muted); min-width: 36px; text-align: right; }
+
+    /* Checkbox */
+    .check-row { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.4rem; font-size: 0.85rem; }
+    .check-row input[type="checkbox"] { accent-color: var(--link); width: 15px; height: 15px; }
+
+    /* Swatches */
+    .swatch-row { display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; }
+    .swatch {
+      width: 26px; height: 26px;
+      border-radius: 4px;
+      cursor: pointer;
+      border: 2px solid transparent;
+      outline: 2px solid transparent;
+      outline-offset: 2px;
+      padding: 0;
+    }
+    .swatch.active { outline-color: var(--fg); }
+    input[type="color"] {
+      width: 26px; height: 26px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 1px 2px;
+      cursor: pointer;
+      background: none;
+    }
+
+    /* Preview */
+    .preview { display: flex; flex-direction: column; gap: 0.75rem; }
+    #qr-preview {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+      line-height: 0;
+      width: 300px; height: 300px;
+    }
+    .dl-btn {
+      width: 300px;
+      padding: 0.55rem 1rem;
+      border: none;
+      border-radius: 4px;
+      background: var(--link);
+      color: #fff;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .dl-btn:hover { opacity: 0.85; }
+
+    hr { border: none; border-top: 1px solid var(--border); margin: 0; }
+  </style>
+</head>
+<body>
+  <a class="back" href="index.html">← Tools</a>
+  <h1>QR Code Generator</h1>
+
+  <div class="layout">
+    <div class="controls">
+
+      <div>
+        <label class="field-label" for="qr-text">Content</label>
+        <input type="text" id="qr-text" placeholder="https://example.com" value="https://example.com">
+      </div>
+
+      <hr>
+
+      <!-- Dot style -->
+      <div>
+        <span class="field-label">Dot style</span>
+        <div class="btn-group" id="bg-dot-style"></div>
+      </div>
+
+      <!-- Corner square style -->
+      <div>
+        <span class="field-label">Corner square style</span>
+        <div class="btn-group" id="bg-corner-sq"></div>
+      </div>
+
+      <!-- Corner dot style -->
+      <div>
+        <span class="field-label">Corner dot style</span>
+        <div class="btn-group" id="bg-corner-dot"></div>
+      </div>
+
+      <!-- QR shape -->
+      <div>
+        <span class="field-label">QR shape</span>
+        <div class="btn-group" id="bg-shape"></div>
+      </div>
+
+      <hr>
+
+      <!-- Logo -->
+      <div>
+        <label class="field-label">Logo <span class="sublabel">(optional, square image)</span></label>
+        <div class="logo-row">
+          <button onclick="document.getElementById('logo-input').click()">Choose image</button>
+          <span class="logo-name" id="logo-name">No logo</span>
+          <button id="clear-logo-btn" style="display:none" onclick="clearLogo()">✕</button>
+        </div>
+        <input type="file" id="logo-input" accept="image/*" style="display:none">
+
+        <div class="range-row">
+          <label for="img-size">Logo size</label>
+          <input type="range" id="img-size" min="0.1" max="0.5" step="0.05" value="0.3">
+          <span class="range-val" id="img-size-val">30%</span>
+        </div>
+        <div class="range-row">
+          <label for="img-margin">Logo margin</label>
+          <input type="range" id="img-margin" min="0" max="20" step="1" value="8">
+          <span class="range-val" id="img-margin-val">8px</span>
+        </div>
+        <div class="check-row">
+          <input type="checkbox" id="hide-bg-dots" checked>
+          <label for="hide-bg-dots">Hide dots behind logo</label>
+        </div>
+      </div>
+
+      <hr>
+
+      <div>
+        <span class="field-label">Background color</span>
+        <div class="swatch-row" id="swatches-bg"></div>
+      </div>
+
+      <div>
+        <span class="field-label">Foreground color</span>
+        <div class="swatch-row" id="swatches-fg"></div>
+      </div>
+
+      <div>
+        <span class="field-label">Accent color <span class="sublabel">(finder pattern rings)</span></span>
+        <div class="swatch-row" id="swatches-accent"></div>
+      </div>
+
+    </div>
+
+    <div class="preview">
+      <div id="qr-preview"></div>
+      <button class="dl-btn" onclick="download()">Download PNG</button>
+    </div>
+  </div>
+
+  <p style="margin-top:2rem;font-size:0.8rem;color:var(--muted)">QR rendering by <a href="https://github.com/kozakdenys/qr-code-styling" style="color:var(--link)">qr-code-styling</a></p>
+
+  <script src="https://unpkg.com/qr-code-styling@1.6.0/lib/qr-code-styling.js"></script>
+  <script>
+    const PRESETS = [
+      { color: '#ffffff', border: '#ccc' },
+      { color: '#111111', border: '#111' },
+      { color: '#1a56db', border: '#1a56db' },
+      { color: '#e02424', border: '#e02424' },
+      { color: '#057a55', border: '#057a55' },
+      { color: '#d97706', border: '#d97706' },
+    ];
+
+    const state = {
+      text:              'https://example.com',
+      logo:              null,
+      bg:                '#ffffff',
+      fg:                '#111111',
+      accent:            '#111111',
+      shape:             'square',
+      dotType:           'square',
+      cornerSquareType:  'square',
+      cornerDotType:     'square',
+      imageSize:         0.3,
+      imageMargin:       8,
+      hideBackgroundDots: true,
+    };
+
+    const qrCode = new QRCodeStyling({
+      width: 300, height: 300,
+      data:  state.text,
+      shape: state.shape,
+      dotsOptions:          { color: state.fg,     type: state.dotType },
+      backgroundOptions:    { color: state.bg },
+      cornersSquareOptions: { color: state.accent, type: state.cornerSquareType },
+      cornersDotOptions:    { color: state.accent, type: state.cornerDotType },
+      imageOptions: {
+        crossOrigin: 'anonymous',
+        hideBackgroundDots: state.hideBackgroundDots,
+        imageSize: state.imageSize,
+        margin: state.imageMargin,
+      },
+      qrOptions: { errorCorrectionLevel: 'H' },
+    });
+
+    qrCode.append(document.getElementById('qr-preview'));
+
+    // ── Button groups ─────────────────────────────────────────────────────────
+
+    function buildBtnGroup(containerId, stateKey, options) {
+      const container = document.getElementById(containerId);
+      options.forEach(({ value, label }) => {
+        const btn = document.createElement('button');
+        btn.textContent = label;
+        if (state[stateKey] === value) btn.classList.add('active');
+        btn.addEventListener('click', () => {
+          container.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          state[stateKey] = value;
+          render();
+        });
+        container.appendChild(btn);
+      });
+    }
+
+    buildBtnGroup('bg-dot-style', 'dotType', [
+      { value: 'square',        label: 'Square' },
+      { value: 'rounded',       label: 'Rounded' },
+      { value: 'extra-rounded', label: 'Extra rounded' },
+      { value: 'dots',          label: 'Dots' },
+      { value: 'classy',        label: 'Classy' },
+      { value: 'classy-rounded',label: 'Classy rounded' },
+    ]);
+
+    buildBtnGroup('bg-corner-sq', 'cornerSquareType', [
+      { value: 'square',        label: 'Square' },
+      { value: 'extra-rounded', label: 'Extra rounded' },
+      { value: 'dot',           label: 'Dot' },
+    ]);
+
+    buildBtnGroup('bg-corner-dot', 'cornerDotType', [
+      { value: 'square', label: 'Square' },
+      { value: 'dot',    label: 'Dot' },
+    ]);
+
+    buildBtnGroup('bg-shape', 'shape', [
+      { value: 'square', label: 'Square' },
+      { value: 'circle', label: 'Circle' },
+    ]);
+
+    // ── Swatches ──────────────────────────────────────────────────────────────
+
+    function buildSwatches(containerId, stateKey, defaultColor) {
+      const container = document.getElementById(containerId);
+      PRESETS.forEach(({ color, border }) => {
+        const btn = document.createElement('button');
+        btn.className = 'swatch' + (color === defaultColor ? ' active' : '');
+        btn.style.background = color;
+        btn.style.borderColor = border;
+        btn.title = color;
+        btn.addEventListener('click', () => {
+          selectSwatch(container, btn, color, stateKey);
+        });
+        container.appendChild(btn);
+      });
+      const picker = document.createElement('input');
+      picker.type = 'color';
+      picker.value = defaultColor;
+      picker.title = 'Custom color';
+      picker.addEventListener('input', () => {
+        container.querySelectorAll('.swatch').forEach(s => s.classList.remove('active'));
+        state[stateKey] = picker.value;
+        render();
+      });
+      container.appendChild(picker);
+    }
+
+    function selectSwatch(container, activeBtn, color, stateKey) {
+      container.querySelectorAll('.swatch').forEach(s => s.classList.remove('active'));
+      activeBtn.classList.add('active');
+      container.querySelector('input[type="color"]').value = color;
+      state[stateKey] = color;
+      render();
+    }
+
+    buildSwatches('swatches-bg',     'bg',     '#ffffff');
+    buildSwatches('swatches-fg',     'fg',     '#111111');
+    buildSwatches('swatches-accent', 'accent', '#111111');
+
+    // ── Text input ────────────────────────────────────────────────────────────
+
+    let debounce;
+    document.getElementById('qr-text').addEventListener('input', e => {
+      state.text = e.target.value;
+      clearTimeout(debounce);
+      debounce = setTimeout(render, 300);
+    });
+
+    // ── Logo ──────────────────────────────────────────────────────────────────
+
+    document.getElementById('logo-input').addEventListener('change', e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = ev => {
+        state.logo = ev.target.result;
+        document.getElementById('logo-name').textContent = file.name;
+        document.getElementById('clear-logo-btn').style.display = '';
+        render();
+      };
+      reader.readAsDataURL(file);
+    });
+
+    function clearLogo() {
+      state.logo = null;
+      document.getElementById('logo-name').textContent = 'No logo';
+      document.getElementById('clear-logo-btn').style.display = 'none';
+      document.getElementById('logo-input').value = '';
+      render();
+    }
+
+    // ── Image options ─────────────────────────────────────────────────────────
+
+    document.getElementById('img-size').addEventListener('input', e => {
+      state.imageSize = parseFloat(e.target.value);
+      document.getElementById('img-size-val').textContent = Math.round(state.imageSize * 100) + '%';
+      render();
+    });
+
+    document.getElementById('img-margin').addEventListener('input', e => {
+      state.imageMargin = parseInt(e.target.value);
+      document.getElementById('img-margin-val').textContent = state.imageMargin + 'px';
+      render();
+    });
+
+    document.getElementById('hide-bg-dots').addEventListener('change', e => {
+      state.hideBackgroundDots = e.target.checked;
+      render();
+    });
+
+    // ── Render ────────────────────────────────────────────────────────────────
+
+    function render() {
+      qrCode.update({
+        data:  state.text || ' ',
+        shape: state.shape,
+        image: state.logo || undefined,
+        dotsOptions:          { color: state.fg,     type: state.dotType },
+        backgroundOptions:    { color: state.bg },
+        cornersSquareOptions: { color: state.accent, type: state.cornerSquareType },
+        cornersDotOptions:    { color: state.accent, type: state.cornerDotType },
+        imageOptions: {
+          crossOrigin:        'anonymous',
+          hideBackgroundDots: state.hideBackgroundDots,
+          imageSize:          state.imageSize,
+          margin:             state.imageMargin,
+        },
+      });
+    }
+
+    function download() {
+      qrCode.download({ name: 'qr-code', extension: 'png' });
+    }
+  </script>
+</body>
+</html>
