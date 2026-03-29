@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Jamie's Tools</title>
+  <style>
+    :root {
+      --bg: #fff;
+      --fg: #111;
+      --muted: #666;
+      --link: #005ea2;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #111;
+        --fg: #eee;
+        --muted: #999;
+        --link: #58a6ff;
+      }
+    }
+    body {
+      font-family: system-ui, sans-serif;
+      font-size: 1rem;
+      line-height: 1.6;
+      max-width: 640px;
+      margin: 2rem auto;
+      padding: 0 1rem;
+      background: var(--bg);
+      color: var(--fg);
+    }
+    h1 { font-size: 1.4rem; margin-bottom: 0.25rem; }
+    p.tagline { color: var(--muted); margin-top: 0; }
+    ul { list-style: none; padding: 0; margin-top: 1.5rem; }
+    li { margin-bottom: 0.75rem; }
+    a { color: var(--link); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .desc { color: var(--muted); margin-left: 0.5rem; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+  <h1>Tools</h1>
+  <p class="tagline">Small, self-contained browser tools.</p>
+  <ul>
+    <li>
+      <a href="json-formatter.html">JSON Formatter</a>
+      <span class="desc">— Paste JSON, get it pretty-printed and validated.</span>
+    </li>
+  </ul>
+</body>
+</html>

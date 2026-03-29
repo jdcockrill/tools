@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JSON Formatter</title>
+  <style>
+    :root {
+      --bg: #fff;
+      --fg: #111;
+      --muted: #666;
+      --border: #ccc;
+      --code-bg: #f5f5f5;
+      --link: #005ea2;
+      --error: #c00;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #111;
+        --fg: #eee;
+        --muted: #999;
+        --border: #444;
+        --code-bg: #1e1e1e;
+        --link: #58a6ff;
+        --error: #f88;
+      }
+    }
+    body {
+      font-family: system-ui, sans-serif;
+      font-size: 1rem;
+      line-height: 1.6;
+      max-width: 800px;
+      margin: 2rem auto;
+      padding: 0 1rem;
+      background: var(--bg);
+      color: var(--fg);
+    }
+    h1 { font-size: 1.4rem; }
+    a { color: var(--link); font-size: 0.9rem; }
+    textarea, pre {
+      width: 100%;
+      box-sizing: border-box;
+      font-family: monospace;
+      font-size: 0.9rem;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.75rem;
+      background: var(--code-bg);
+      color: var(--fg);
+    }
+    textarea { height: 180px; resize: vertical; }
+    pre { min-height: 180px; white-space: pre-wrap; word-break: break-all; }
+    .error { color: var(--error); font-size: 0.9rem; margin: 0.25rem 0; }
+    button {
+      margin-top: 0.5rem;
+      padding: 0.4rem 1rem;
+      cursor: pointer;
+    }
+    label { display: block; font-weight: 600; margin-bottom: 0.25rem; }
+  </style>
+</head>
+<body>
+  <h1>JSON Formatter</h1>
+  <p><a href="index.html">← Tools</a></p>
+
+  <label for="input">Input</label>
+  <textarea id="input" placeholder="Paste JSON here..." spellcheck="false"></textarea>
+  <div id="error" class="error" hidden></div>
+  <button onclick="format()">Format</button>
+  <button onclick="minify()">Minify</button>
+  <button onclick="copyOutput()">Copy</button>
+
+  <label for="output" style="margin-top:1rem">Output</label>
+  <pre id="output"></pre>
+
+  <script>
+    const input = document.getElementById('input');
+    const output = document.getElementById('output');
+    const error = document.getElementById('error');
+
+    function parse() {
+      try {
+        const parsed = JSON.parse(input.value.trim());
+        error.hidden = true;
+        return parsed;
+      } catch (e) {
+        error.textContent = e.message;
+        error.hidden = false;
+        return null;
+      }
+    }
+
+    function format() {
+      const parsed = parse();
+      if (parsed !== null) output.textContent = JSON.stringify(parsed, null, 2);
+    }
+
+    function minify() {
+      const parsed = parse();
+      if (parsed !== null) output.textContent = JSON.stringify(parsed);
+    }
+
+    function copyOutput() {
+      navigator.clipboard.writeText(output.textContent);
+    }
+
+    // Auto-format on paste
+    input.addEventListener('paste', () => setTimeout(format, 0));
+  </script>
+</body>
+</html>
